@@ -1,5 +1,7 @@
-docker-dovecot-getmail
+docker-dovecot
 ======================
+
+***docker-dovecot*** is a fork of [*docker-dovecot-getmail*](http://github.com/gw0/docker-dovecot-getmail/) to only include dovecot
 
 ***docker-dovecot-getmail*** is a [*Docker*](http://www.docker.com/) image based on *Debian* implementing a private email gateway with [*dovecot*](http://en.wikipedia.org/wiki/Dovecot_(software)) and [*getmail*](http://en.wikipedia.org/wiki/Getmail) for gathering emails from multiple accounts on a private server (IMAP), but using a public email infrastructure for sending (SMTP).
 
@@ -33,84 +35,22 @@ Usage
 
 Requirements:
 
-- `/home`: mounted users directories (`Maildir` in fs layout, `sieve`, `.getmail`)
-- `/etc/cron.d`: mounted crontabs for executing all getmail accounts
+- `/home`: mounted users directories (`Maildir` in fs layout)
 - `/etc/ssl/private`: mounted SSL/TLS certificates (`dovecot.crt`, `dovecot.key`)
 
-Prepare your getmailrc account configurations per user (`/srv/mail/home/user/.getmail/getmailrc-user@email.invalid`):
 
-```
-# ~/.getmail/getmailrc-*: getmailrc email configuration
-
-[retriever]
-type = SimpleIMAPSSLRetriever
-server = imap.email.invalid
-username = user@email.invalid
-port = 993
-password = password
-mailboxes = ("INBOX", "Sent", "Spam")
-
-[destination]
-type = MDA_external
-path = /usr/lib/dovecot/deliver
-arguments = ("-e",)
-
-[options]
-read_all = false
-delete_after = 30
-delivered_to = false
-received = true
-verbose = 1
-```
-
-If you are using Sieve filters and want a `Refilter` mailbox to trigger their refiltering, create a refilter configuration per user (`/srv/mail/home/user/.getmail/getmailrc-refilter`):
-
-```
-# ~/.getmail/getmailrc-*: getmailrc refilter configuration
-
-[retriever]
-type = SimpleIMAPRetriever
-server = localhost
-port = 143
-username = user
-password = password
-mailboxes = ("Refilter",)
-
-[destination]
-type = MDA_external
-path = /usr/lib/dovecot/deliver
-arguments = ("-e",)
-
-[options]
-read_all = false
-delete = true
-delivered_to = false
-received = false
-verbose = 1
-```
-
-Prepare crontab file (`/srv/mail/cron.d/getmail`) for periodically checking for new mail for each user and account:
-
-```
-# /etc/cron.d/getmail: system-wide crontab for getmail
-SHELL=/bin/sh
-
-# m h dom mon dow user  command
-*/20 *  *   *   * user  ACC="user-refilter" && (date; flock -n ~/.getmail/lock-$ACC getmail --rcfile="getmailrc-$ACC" --idle Refilter) >>"/var/log/getmail/$ACC.log" 2>&1
-*/20 *  *   *   * user  ACC="user@email.invalid" && (date; flock -n ~/.getmail/lock-$ACC getmail --rcfile="getmailrc-$ACC" --idle INBOX) >>"/var/log/getmail/$ACC.log" 2>&1
-```
 
 Do not forget to place your SSL certificates as `/srv/mail/ssl/dovecot.crt` and `/srv/mail/ssl/dovecot.key`. SSL is required!
 
 And finally start it with *docker*:
 
 ```bash
-$ docker run -d -v /srv/mail/home:/home -v /srv/mail/cron.d:/etc/cron.d -v /srv/mail/ssl:/etc/ssl/private:ro -p 143 -p 993 -p 4190 --name mail gw000/dovecot-getmail
+$ docker run -d -v /srv/mail/home:/home -v /srv:/vol -v /srv/mail/ssl:/etc/ssl/private:ro -p 143 -p 993 -p 4190 --name mail gw000/dovecot-getmail
 ```
 
 Or use *docker-compose* (check out `docker-compose.example.yml`).
 
-Users are created automatically with default password (`replaceMeNow`) on first start. To reset user passwords (of a running container):
+Users are created automatically. If password in `/vol/config/${USER}.pass` the password in file will be used else default password (`replaceMeNow`) ia set on first start. To reset user passwords (of a running container):
 
 ```bash
 $ docker exec -it mail passwd user
